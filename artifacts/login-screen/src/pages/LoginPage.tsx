@@ -9,11 +9,8 @@ const R_MAX = 70;
 
 const FLOOR_RATIO = 0.70;
 const STREAM_H = 62;
-const LERP_DRAIN = 0.020;
-const LERP_FILL  = 0.018;
-const LERP_STREAM = 0.055;
-// How fast the invisible "wall" sweeps across — lower = slower, more liquid-like
-const WALL_SPEED = 0.006;
+// Single speed drives EVERYTHING: floor, stream, walls, balls — perfectly in sync
+const WALL_SPEED = 0.007;
 
 const LIQUID = "rgba(99,102,241,1)";
 const LIQUID_DARK = "rgba(67,56,202,1)";
@@ -36,22 +33,10 @@ export default function LoginPage() {
   const ballsRef   = useRef<Ball[]>([]);
   const frameRef   = useRef<number>(0);
 
-  // Floor heights (JS-animated)
-  const floorLH = useRef(0);
-  const floorRH = useRef(0);
-  const targetLH = useRef(0);
-  const targetRH = useRef(0);
-
-  // Stream (JS-animated)
-  const streamLeft = useRef(0);
-  const streamW    = useRef(0);
-  const targetSL   = useRef(0);
-  const targetSW   = useRef(0);
-
-  // wallProgress: 0 = fully left, 1 = fully right.
-  // The wall sweeps continuously — no binary snap.
-  const wallProgress = useRef(0);   // current
-  const wallTarget   = useRef(0);   // 0 or 1
+  // wallProgress: 0 = fully login/left, 1 = fully register/right.
+  // ALL visuals (floors, stream, walls, ball restY) are derived from this single value.
+  const wallProgress = useRef(0);
+  const wallTarget   = useRef(0);
   const isMoving     = useRef(false);
 
   const modeRef = useRef<"login" | "register">("login");
@@ -72,16 +57,9 @@ export default function LoginPage() {
     const half    = () => W / 2;
 
     // --- Init ---
-    floorLH.current = fullH();
-    floorRH.current = 0;
-    targetLH.current = fullH();
-    targetRH.current = 0;
-    streamLeft.current = 0;
-    streamW.current = half();
-    targetSL.current = 0;
-    targetSW.current = half();
     wallProgress.current = 0;
     wallTarget.current = 0;
+    isMoving.current = false;
 
     // --- Spawn surface balls on left waterline ---
     const balls: Ball[] = [];
@@ -130,24 +108,35 @@ export default function LoginPage() {
       }
     };
 
-    // --- Per-ball rest Y: based on actual floor height at ball's x ---
-    const getRestY = (bx: number): number => {
+    // --- All visuals computed from wallProgress ---
+    // t=0: login (left), t=1: register (right)
+
+    const getFloors = (t: number) => ({
+      leftH:  fullH() * (1 - t),   // drains from fullH → 0
+      rightH: fullH() * t,          // fills  from 0 → fullH
+    });
+
+    // Stream: expands to full width at t=0.5, contracts to destination side
+    const getStream = (t: number) => ({
+      left:  Math.max(0, W * (t - 0.5)),
+      width: W / 2 + W * Math.min(t, 1 - t),
+    });
+
+    // Per-ball surface Y derived entirely from t (same formula as floors)
+    const getRestY = (bx: number, t: number): number => {
       const h = half();
-      // Which side is the ball on?
-      const floorH = bx < h ? floorLH.current : floorRH.current;
-      // Waterline for that side
-      const waterline = H - floorH;
-      // Can't go lower than stream top
-      const streamTop = H - STREAM_H;
-      // Ball rests at the higher surface (lower Y value)
-      return Math.min(waterline, streamTop);
+      const { leftH, rightH } = getFloors(t);
+      const floorH   = bx < h ? leftH : rightH;
+      const waterline = H - floorH;          // Y of liquid surface for this side
+      const streamTop = H - STREAM_H;        // Y of stream top
+      return Math.min(waterline, streamTop); // ball can't go below stream
     };
 
     // --- Main update ---
     const update = () => {
       const h = half();
 
-      // 1. Animate wall progress (continuous, no snap)
+      // 1. Advance wallProgress at constant speed toward target
       if (isMoving.current) {
         const dir = wallTarget.current > wallProgress.current ? 1 : -1;
         wallProgress.current += dir * WALL_SPEED;
@@ -160,33 +149,28 @@ export default function LoginPage() {
         }
       }
 
-      // Walls are interpolated: left wall sweeps from 0→W/2, right from W/2→W
-      const t  = wallProgress.current;
-      const wallL = h * t;          // 0 (login) → W/2 (register)
-      const wallR = h + h * t;      // W/2 (login) → W (register)
+      const t = wallProgress.current;
 
-      // 2. Animate floor heights via lerp
-      floorLH.current += (targetLH.current - floorLH.current) * LERP_DRAIN;
-      floorRH.current += (targetRH.current - floorRH.current) * LERP_FILL;
-      if (Math.abs(floorLH.current - targetLH.current) < 0.4) floorLH.current = targetLH.current;
-      if (Math.abs(floorRH.current - targetRH.current) < 0.4) floorRH.current = targetRH.current;
-      floorL.style.height = floorLH.current + "px";
-      floorR.style.height = floorRH.current + "px";
+      // 2. Floors — directly from t, perfectly in sync with walls & balls
+      const { leftH, rightH } = getFloors(t);
+      floorL.style.height = leftH  + "px";
+      floorR.style.height = rightH + "px";
 
-      // 3. Animate stream
-      streamLeft.current += (targetSL.current - streamLeft.current) * LERP_STREAM;
-      streamW.current    += (targetSW.current - streamW.current)    * LERP_STREAM;
-      if (Math.abs(streamLeft.current - targetSL.current) < 0.4) streamLeft.current = targetSL.current;
-      if (Math.abs(streamW.current    - targetSW.current) < 0.4) streamW.current    = targetSW.current;
-      stream.style.left  = streamLeft.current + "px";
-      stream.style.width = streamW.current + "px";
+      // 3. Stream — expands to full width at midpoint, contracts to destination
+      const { left: sLeft, width: sWidth } = getStream(t);
+      stream.style.left  = sLeft  + "px";
+      stream.style.width = sWidth + "px";
 
-      // 4. Physics
+      // 4. Walls — sweep from left to right as t goes 0→1
+      const wallL = h * t;       // left  boundary: 0 → W/2
+      const wallR = h + h * t;   // right boundary: W/2 → W
+
+      // 5. Physics — surface balls follow the same t-derived waterline
       for (const b of balls) {
-        // Gentle continuous pull toward the target side's center
+        // Continuous pull toward target center so balls flow with the wall
         if (isMoving.current) {
-          const targetCX = wallTarget.current === 1 ? W * 0.75 : W * 0.25;
-          b.vx += (targetCX - b.x) * 0.007;
+          const cx = wallTarget.current === 1 ? W * 0.75 : W * 0.25;
+          b.vx += (cx - b.x) * 0.006;
         }
 
         b.vy += GRAVITY;
@@ -198,24 +182,18 @@ export default function LoginPage() {
         if (Math.abs(b.vx) < 0.03) b.vx = 0;
         if (Math.abs(b.vy) < 0.03) b.vy = 0;
 
-        // Interpolated side walls — no snapping, they glide
-        if (b.x - b.r < wallL) {
-          b.x  = wallL + b.r;
-          b.vx = Math.abs(b.vx) * BOUNCE;
-        } else if (b.x + b.r > wallR) {
-          b.x  = wallR - b.r;
-          b.vx = -Math.abs(b.vx) * BOUNCE;
-        }
+        // Sliding walls push balls continuously — no snap
+        if (b.x - b.r < wallL) { b.x = wallL + b.r; b.vx = Math.abs(b.vx) * BOUNCE; }
+        else if (b.x + b.r > wallR) { b.x = wallR - b.r; b.vx = -Math.abs(b.vx) * BOUNCE; }
 
-        // Rest on liquid surface (dynamic per ball x)
-        const restY = getRestY(b.x) + b.r * 0.14;
+        // Surface: same formula as floor DOM elements → always in sync
+        const restY = getRestY(b.x, t) + b.r * 0.14;
         if (b.y > restY) {
           b.y  = restY;
           b.vy = -Math.abs(b.vy) * BOUNCE;
           b.vx *= 0.75;
         }
 
-        // Ceiling
         if (b.y - b.r < -20) { b.y = b.r - 20; b.vy = Math.abs(b.vy) * BOUNCE; }
       }
 
@@ -247,45 +225,18 @@ export default function LoginPage() {
     modeRef.current = newMode;
     setMode(newMode);
 
-    const W = liquidRef.current?.offsetWidth ?? 0;
-    const H = liquidRef.current?.offsetHeight ?? 0;
-    const fullH = H * FLOOR_RATIO;
+    // Everything is derived from wallProgress — just set the target and let it run
+    wallTarget.current = newMode === "register" ? 1 : 0;
+    isMoving.current = true;
 
-    if (newMode === "register") {
-      // Drain left, fill right, stream spans full width then contracts right
-      targetLH.current = 0;
-      targetRH.current = fullH;
-      targetSL.current = 0;
-      targetSW.current = W;
-      wallTarget.current = 1;
-      // Contract stream to right side after drain is mostly done
-      setTimeout(() => {
-        targetSL.current = W / 2;
-        targetSW.current = W / 2;
-      }, 1100);
-    } else {
-      // Drain right, fill left, stream spans full width then contracts left
-      targetRH.current = 0;
-      targetLH.current = fullH;
-      targetSL.current = 0;
-      targetSW.current = W;
-      wallTarget.current = 0;
-      setTimeout(() => {
-        targetSL.current = 0;
-        targetSW.current = W / 2;
-      }, 1100);
-    }
-
-    // Initial push in the right direction
+    // Small initial impulse to kick the physics alive
     const dir = newMode === "register" ? 1 : -1;
     ballsRef.current.forEach((b, i) => {
       setTimeout(() => {
-        b.vx += dir * (3 + Math.random() * 5);
-        b.vy += 1.5 + Math.random() * 2;
-      }, i * 25);
+        b.vx += dir * (2 + Math.random() * 3);
+        b.vy += 1 + Math.random() * 1.5;
+      }, i * 20);
     });
-
-    isMoving.current = true;
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
