@@ -286,9 +286,11 @@ export default function LoginPage() {
       {/* Forms */}
       <div className="relative z-20 flex w-full h-full">
 
-        {/* LOGIN */}
+        {/* LOGIN SIDE */}
         <div className="flex-1 flex flex-col items-center justify-center px-10 py-12">
-          <div className={`w-full max-w-sm transition-all duration-500 ${mode === "login" ? "opacity-100 translate-y-0" : "opacity-20 translate-y-2 pointer-events-none"}`}>
+
+          {/* Active: full login form */}
+          <div className={`w-full max-w-sm transition-all duration-500 absolute ${mode === "login" ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 -translate-y-3 pointer-events-none"}`}>
             <div className="mb-8 text-center">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 border border-white/10"
                 style={{ background: "rgba(30,27,75,0.65)", boxShadow: "0 8px 32px rgba(99,102,241,0.25)", backdropFilter: "blur(16px)" }}>
@@ -299,7 +301,7 @@ export default function LoginPage() {
               <h1 className="text-3xl font-bold text-white tracking-tight">Bem-vindo</h1>
               <p className="text-indigo-200/50 mt-1 text-sm">Entre na sua conta para continuar</p>
             </div>
-            <form className="space-y-4 pointer-events-auto" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
               {[
                 { label: "E-mail", name: "email", type: "email", placeholder: "seu@email.com", auto: "email" },
                 { label: "Senha", name: "password", type: "password", placeholder: "••••••••", auto: "current-password" },
@@ -324,16 +326,42 @@ export default function LoginPage() {
                 Entrar
               </button>
             </form>
-            <p className="text-center text-xs text-indigo-200/30 mt-6 pointer-events-auto">
+            <p className="text-center text-xs text-indigo-200/30 mt-6">
               Não tem conta?{" "}
               <button onClick={() => switchMode("register")} className="text-indigo-300/70 hover:text-indigo-200 font-semibold transition-colors">Cadastre-se</button>
             </p>
           </div>
+
+          {/* Inactive: invite message */}
+          <div className={`text-center transition-all duration-500 ${mode === "register" ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-3 pointer-events-none"}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/25 mb-4">Já tem conta?</p>
+            <h2 className="text-4xl font-bold text-white/80 mb-3 leading-tight">Bem-vindo<br/>de volta</h2>
+            <p className="text-white/30 text-sm mb-8">Entre para acessar sua conta</p>
+            <button onClick={() => switchMode("login")}
+              className="px-8 py-3 rounded-full text-sm font-semibold border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition-all"
+              style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)" }}>
+              Entrar agora
+            </button>
+          </div>
         </div>
 
-        {/* REGISTER */}
+        {/* REGISTER SIDE */}
         <div className="flex-1 flex flex-col items-center justify-center px-10 py-12">
-          <div className={`w-full max-w-sm transition-all duration-500 ${mode === "register" ? "opacity-100 translate-y-0" : "opacity-20 translate-y-2 pointer-events-none"}`}>
+
+          {/* Inactive: invite message */}
+          <div className={`text-center transition-all duration-500 ${mode === "login" ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-3 pointer-events-none"}`}>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/25 mb-4">Novo por aqui?</p>
+            <h2 className="text-4xl font-bold text-white/80 mb-3 leading-tight">Cadastre-se<br/>aqui</h2>
+            <p className="text-white/30 text-sm mb-8">Crie sua conta em poucos passos</p>
+            <button onClick={() => switchMode("register")}
+              className="px-8 py-3 rounded-full text-sm font-semibold border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition-all"
+              style={{ background: "rgba(255,255,255,0.05)", backdropFilter: "blur(12px)" }}>
+              Criar conta
+            </button>
+          </div>
+
+          {/* Active: full register form */}
+          <div className={`w-full max-w-sm transition-all duration-500 absolute ${mode === "register" ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 -translate-y-3 pointer-events-none"}`}>
             <div className="mb-6 text-center">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 border border-white/10"
                 style={{ background: "rgba(15,23,42,0.65)", boxShadow: "0 8px 32px rgba(59,130,246,0.2)", backdropFilter: "blur(16px)" }}>
